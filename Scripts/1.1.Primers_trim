@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+
+for file1 in $(ls filtN/*_1.fastq.gz)
+do
+    file2=${file1%%_1.fastq.gz}"_2.fastq.gz"
+
+    mkdir -p filt_cutadapt
+    NM=${file1%%_1.fastq.gz} ; NAME=${NM##filtN/}
+    
+    cutadapt -n 2 $file1 $file2 \
+	  -g GTGARTCATCGARTCTTTG -a GCATATCAATAAGCGSAGGAA \
+	  -G TTCCTSCGCTTATTGATATGC -A CAAAGAYTCGATGAYTCAC \
+      -o filt_cutadapt/${NAME}_1.fastq.gz \
+      -p filt_cutadapt/${NAME}_2.fastq.gz \
+      --info-file=filt_cutadapt/${NAME}.dat > filt_cutadapt/${NAME}_report.txt
+done
