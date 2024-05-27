@@ -1,10 +1,12 @@
 #!/usr/bin/bash
 
+# Create output directory
+mkdir -p filt_cutadapt
+
+# Trim primers
 for file1 in $(ls filtN/*_1.fastq.gz)
 do
     file2=${file1%%_1.fastq.gz}"_2.fastq.gz"
-
-    mkdir -p filt_cutadapt
     NM=${file1%%_1.fastq.gz} ; NAME=${NM##filtN/}
     
     cutadapt -n 2 $file1 $file2 \
