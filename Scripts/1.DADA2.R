@@ -110,7 +110,7 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]),
 fnFs.filtQ <- file.path(path, "filtQ", basename(fnFs.cut))
 fnRs.filtQ <- file.path(path, "filtQ", basename(fnRs.cut))
 
-out2 <- filterAndTrim(fnFs.cut,fnFs.filtQ,fnRs.cut,fnRs.filtQ,minLen=20,maxEE=8,truncQ=8,compress=TRUE,multithread=F)  #####CUSTOMIZE MAXEE AND TRUNCQ VALUES ACCORDING TO PREFERENCES
+out2 <- filterAndTrim(fnFs.cut,fnFs.filtQ,fnRs.cut,fnRs.filtQ,minLen=20,maxEE=8,truncQ=8,compress=TRUE,multithread=F)  
 
 #### End ####
 
@@ -220,22 +220,22 @@ write.table(count_tab, "Results/count_tab.tsv", sep="\t", quote=F, col.names=NA)
 #### End ####
 
 #### Assign taxonomy with blast ####
-# Performed in Ubuntu environment. See script 1.2.Taxonomy.assignment
+# Performed in Ubuntu environment. See script 1.2.Taxonomy.assignment and 1.3.Filter_blast
 
 # Read taxa table created with blast:
-tax_tab <- as.matrix(read.xlsx("Results/2.blast/blast_final_95_nt_unite_customized2.xlsx", rowNames = T))
+tax_tab <- as.matrix(read.xlsx("Results/2.blast/blast_final_95_nt_unite_customized.xlsx", rowNames = T))
 tax_tab <- tax_tab[,c("Kingdom_unite", "Phylum_unite", "Class_unite", "Order_unite", "Family_unite", "Genus_custom", "Species_custom")]
-
+colnames(tax_tab) <- gsub("_unite|_custom", "", colnames(tax_tab))
+  
 # Add ASVs that are not present, for phyloseq object
-nASV <- 1:(length(fasta_tab)/2)
-nASV <- paste0("ASV_", nASV[!nASV %in% as.numeric(gsub("ASV_", "", final$seqid))])
+nASV <- rownames(count_tab)[!rownames(count_tab) %in% rownames(tax_tab)]
 tax_tab <- rbind(tax_tab, matrix(, nrow = length(nASV), ncol = dim(tax_tab)[2], dimnames = list(nASV,colnames(tax_tab))))
 
 #### End ####
 
 #### Add samples metadata and match to count table####
 
-sample_info_tab <- read.xlsx("00-INTeGRATE_Fungome_paper_alldata_30102023.xlsx", sheet = "00-Patient_Info", rowNames = T)
+sample_info_tab <- read.xlsx("00-INTeGRATE_Fungome_paper_alldata_30102023.xlsx", sheet = "0-metadata", rowNames = T)
 sample_info_tab$sample = rownames(sample_info_tab)
 
 # Examine all tables
@@ -246,8 +246,7 @@ head(sample_info_tab)
 
 # Examine consistancy in order between count_tab colnames and coldata rownames 
 
-all(rownames(sample_info_tab) %in% colnames(count_tab))
-all(rownames(sample_info_tab) == colnames(count_tab)) 
+all(colnames(count_tab) %in% rownames(sample_info_tab))
 
 all(rownames(tax_tab) %in% rownames(count_tab))
 all(rownames(count_tab) %in% rownames(tax_tab))
@@ -273,6 +272,7 @@ physeq <- phyloseq(otu_table(count_tab, taxa_are_rows = T),   #taxa_are_rows=F (
 #### Count total reads ####
 
 sample_sums(physeq) #Nr of reads per Sample
+sample_data(physeq)$ITS2_Read_Nr <- sample_sums(physeq) 
 
 #### End ####
 
@@ -291,16 +291,15 @@ save.image("Results/RData/1.physeq.original.RData")
 
 rank_names(physeq)
 
-table(tax_table(physeq)[, "Phylum_unite"], exclude = NULL)
+table(tax_table(physeq)[, "Phylum"], exclude = NULL)
 
-physeq_oNA <- subset_taxa(physeq, !is.na(Phylum_unite))
+physeq_oNA <- subset_taxa(physeq, !is.na(Phylum))
 
-table(tax_table(physeq_oNA)[, "Phylum_unite"], exclude = NULL)
+table(tax_table(physeq_oNA)[, "Phylum"], exclude = NULL)
 
 physeq 
 physeq_oNA
 physeq = physeq_oNA
-#physeq = physeq_FB
 
 #### End ####
 
@@ -319,10 +318,10 @@ write.table(prevdf, "Results/asv_prevdf.tsv", sep="\t", quote=F, col.names=NA)
 
 #Plot Taxa prevalence v. total counts. Each point is a different taxa. 
 
-ggplot(prevdf, aes(TotalAbundance, Prevalence / nsamples(physeq),color=Species_custom)) +
+ggplot(prevdf, aes(TotalAbundance, Prevalence / nsamples(physeq),color=Species)) +
   geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +  geom_point(size = 2, alpha = 0.7) +
   scale_x_log10() +  xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
-  facet_wrap(~Species_custom) + theme(legend.position="none")
+  facet_wrap(~Species) + theme(legend.position="none")
 
 #### End ####
 
@@ -330,9 +329,11 @@ ggplot(prevdf, aes(TotalAbundance, Prevalence / nsamples(physeq),color=Species_c
 
 length(taxa_sums(physeq))
 
-track_fungal <- cbind (trackF, colSums(otu_table(physeq)))
+track_fungal <- cbind (trackF, sample_sums(physeq))
 colnames(track_fungal) <- c(colnames(trackF),"fungal")
 write.xlsx(as.data.frame(track_fungal), "Results/1.QC/Pipeline_track_fungal.xlsx", rowNames = T)
+
+sample_data(physeq)$Fungal_ASV_counts <- sample_sums(physeq) 
 
 #### End ####
 
@@ -391,9 +392,6 @@ physeq = physeq_filtered
 
 #### Assign upper taxonomic ranks to unassigned taxa ####
 
-tax <- as.data.frame(tax_table(physeq)) 
-tax <- phyloseq::tax_table(as.matrix.data.frame(tax))
-phyloseq::tax_table(physeq_filtered_F) <- tax; rm(tax)
 physeq <- tax_fix(physeq)
 
 #### End ####
@@ -415,13 +413,13 @@ physeq_re = transform_sample_counts(physeq, function(x){x / sum(x)})
 # Abundance value transformation function
 
 plot_abundance = function(physeq, ylabn = "",
-                          Facet = "Species_custom",
-                          Color = "Genus_custom",
+                          Facet = "Species",
+                          Color = "Genus",
                           n = NULL){
   mphyseq = psmelt(physeq)
   mphyseq <- subset(mphyseq, Abundance > 0)
   ggplot(data = mphyseq,
-         mapping = aes_string(x = "culture..fungi.", y = "Abundance",
+         mapping = aes_string(x = "category_fungi", y = "Abundance",
                               color = Color, fill = Color)) +
     geom_violin(fill = NA) +
     geom_point(size = 1, alpha = 0.3,
