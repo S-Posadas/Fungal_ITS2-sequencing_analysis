@@ -1,5 +1,10 @@
-library(dplyr)
+
+#### Package setup ####
+
 library(openxlsx)
+library(dplyr)
+
+#### End ####
 
 #### Format blast table to get a single taxa per ASV UNITE ####
 # Read alignment table from blast and arrange column names
@@ -51,26 +56,47 @@ for(asv in unique(blastu$seqid)){
 filtu <- as.data.frame(do.call(rbind, filt)) 
 dim(filtu)
 
+# Check if Phylum is not unique within each ASV
+non_unique_phylumu <- filtu %>%
+  group_by(seqid) %>%
+  filter(n_distinct(Phylum) > 1)
+length(unique(non_unique_phylumu$seqid)) 
+
+# Remove classification of ASVs with more than 1 Phylum 
+filtu[filtu$seqid %in% unique(non_unique_phylumu$seqid), c("Phylum", "Class", "Order", "Family", "Genus", "Species", "Species_ID")] <- NA
+
+# Check if Class is not unique within each ASV
+non_unique_classu <- filtu %>%
+  group_by(seqid) %>%
+  filter(n_distinct(Class) > 1)
+length(unique(non_unique_classu$seqid)) 
+
+filtu[filtu$seqid %in% unique(non_unique_classu$seqid), c("Class", "Order", "Family", "Genus", "Species", "Species_ID")] <- NA
+
+# Check if Order is not unique within each ASV
+non_unique_orderu <- filtu %>%
+  group_by(seqid) %>%
+  filter(n_distinct(Order) > 1)
+length(unique(non_unique_orderu$seqid)) 
+
+filtu[filtu$seqid %in% unique(non_unique_orderu$seqid), c("Order", "Family", "Genus", "Species", "Species_ID")] <- NA
+
+# Check if Family is not unique within each ASV
+non_unique_familyu <- filtu %>%
+  group_by(seqid) %>%
+  filter(n_distinct(Family) > 1)
+length(unique(non_unique_familyu$seqid)) 
+
+filtu[filtu$seqid %in% unique(non_unique_familyu$seqid), c("Family", "Genus", "Species", "Species_ID")] <- NA
+
 # Check if Genus is not unique within each ASV
 non_unique_genusu <- filtu %>%
   group_by(seqid) %>%
   filter(n_distinct(Genus) > 1)
 length(unique(non_unique_genusu$seqid)) 
-# "ASV_2"   "ASV_14"  "ASV_23"  "ASV_36"  "ASV_43"  "ASV_52"  "ASV_53"  "ASV_54"  "ASV_59"  "ASV_64"  "ASV_69"  "ASV_71"  "ASV_101"
+# "ASV_101"
 
 # Manually revise not unique ASVs and keep upper taxon which is unique
-filtu[filtu$seqid == "ASV_2",]$Family = NA ; filtu[filtu$seqid == "ASV_2",]$Genus = NA ; filtu[filtu$seqid == "ASV_2",]$Species = NA 
-filtu[filtu$seqid == "ASV_14",]$Family = NA ; filtu[filtu$seqid == "ASV_14",]$Genus = NA ; filtu[filtu$seqid == "ASV_14",]$Species = NA 
-filtu[filtu$seqid == "ASV_23", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
-filtu[filtu$seqid == "ASV_36",]$Family = NA ; filtu[filtu$seqid == "ASV_36",]$Genus = NA ; filtu[filtu$seqid == "ASV_36",]$Species = NA 
-filtu[filtu$seqid == "ASV_43", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
-filtu[filtu$seqid == "ASV_52",]$Family = NA ; filtu[filtu$seqid == "ASV_52",]$Genus = NA ; filtu[filtu$seqid == "ASV_52",]$Species = NA 
-filtu[filtu$seqid == "ASV_53", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
-filtu[filtu$seqid == "ASV_54", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
-filtu[filtu$seqid == "ASV_59", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
-filtu[filtu$seqid == "ASV_64", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
-filtu[filtu$seqid == "ASV_69", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
-filtu[filtu$seqid == "ASV_71", c("Phylum", "Class", "Order", "Family", "Genus", "Species")] = NA
 filtu[filtu$seqid == "ASV_101",] = filtu[filtu$seqid == "ASV_101",][1,]
 
 # Check if Genus is now unique within each ASV
@@ -281,7 +307,7 @@ write.xlsx(final, "Results/2.blast/blast_final_95_nt_unite.xlsx")
 final$Genus_custom <- final$Genus_unite
 final$Species_custom <- final$Species_unite
 
-# Manually revise ASVs with no genus identification in GTDB
+# Revise ASVs with no genus identification in GTDB
 final[is.na(final$Genus_unite),c("seqid","Genus_nt", "Species_nt")]
 
 # Only one ASV was assigned to a fungus (ASV_125)
@@ -292,7 +318,7 @@ final[final$seqid == "ASV_125",c("Genus_custom", "Species_custom")] = final[fina
 final[is.na(final$Species_unite),c("seqid","Genus_nt", "Species_nt")]
 final[grep("_sp",final$Species_unite),c("seqid","Genus_unite", "Genus_nt", "Species_nt")]
 
-# Three ASVs have a better resolution with nt (ASV_11, ASV_15, ASV_30, ASV_31, ASV_93)
+# Seven ASVs have a better resolution with nt (ASV_11, ASV_15, ASV_29 ASV_30, ASV_31, "ASV_74", ASV_93)
 final[final$seqid == "ASV_11",c("Genus_custom", "Species_custom")] = final[final$seqid == "ASV_11",c("Genus_nt", "Species_nt")]
 final[final$seqid %in% c("ASV_29","ASV_15","ASV_30", "ASV_31", "ASV_74", "ASV_93"), "Species_custom"] =
   final[final$seqid %in% c("ASV_29","ASV_15","ASV_30", "ASV_31", "ASV_74", "ASV_93"), "Species_nt"]
@@ -300,6 +326,6 @@ final[final$seqid %in% c("ASV_29","ASV_15","ASV_30", "ASV_31", "ASV_74", "ASV_93
 # Save customized taxa table
 
 write.table(final, "Results/2.blast/blast_final_95_nt_unite_customized", sep = "\t", row.names = FALSE)
-write.xlsx(final, "Results/2.blast/blast_final_95_nt_unite_customized2.xlsx")
+write.xlsx(final, "Results/2.blast/blast_final_95_nt_unite_customized.xlsx")
 
 #### End ####
